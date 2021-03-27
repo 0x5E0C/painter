@@ -12,8 +12,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->serialportBox,SIGNAL(activated(int)),this,SLOT(recordSerialChoice(int)));
     connect(serialport,SIGNAL(readyRead()),this,SLOT(readSerialport()));
     connect(ui->sampleButton,SIGNAL(clicked()),this,SLOT(startSample()));
-    connect(ui->syncButton,SIGNAL(clicked()),this,SLOT(syncCoordinateAxis()));
     connect(ui->sendButton,SIGNAL(clicked()),this,SLOT(sendData()));
+    connect(ui->updateMapButton,SIGNAL(clicked()),this,SLOT(updateMapSize()));
+    connect(processor,SIGNAL(processed()),this,SLOT(updateGraph()));
+    connect(send_timer,SIGNAL(timeout()),this,SLOT(writeSerialport()));
 }
 
 MainWindow::~MainWindow()
@@ -21,25 +23,21 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-/*函数名：widgetInit*/
-/*参数：无*/
-/*功能：初始化软件界面与全局变量*/
-/*返回值：无*/
 void MainWindow::widgetInit()
 {
     image=QImage(canvas_length,canvas_width,QImage::Format_RGB32);
     image.fill(qRgb(255,255,255));                          //画板填充为白色
     serial_state=CLOSESTATE;
     serial_choice="";
+    reply_flag=false;
+    autosend_flag=false;
+    processor = new process();
+    processor->setReplyFlag(&reply_flag);
     ui->openButton->setIcon(QPixmap(":/state/close.png"));  //按钮图标设置为关闭图标
     ui->openButton->setText("打开串口");
     timer->start(BASETIME);
 }
 
-/*函数名：changeSerialState*/
-/*参数：无*/
-/*功能：按下“打开串口”按钮后改变按钮显示与串口状态变量*/
-/*返回值：无*/
 void MainWindow::changeSerialState()
 {
     if(serial_state==CLOSESTATE && openSerialport())
@@ -57,10 +55,6 @@ void MainWindow::changeSerialState()
     }
 }
 
-/*函数名：recordSerialChoice*/
-/*参数：串口下拉选择列表的选择*/
-/*功能：记录和在更换串口选择时重启串口*/
-/*返回值：无*/
 void MainWindow::recordSerialChoice(int choice)
 {
     serial_choice=ui->serialportBox->itemText(choice);      //获取从串口下拉列表选择的串口名
@@ -71,10 +65,6 @@ void MainWindow::recordSerialChoice(int choice)
     }
 }
 
-/*函数名：searchSerialport*/
-/*参数：无*/
-/*功能：搜索并更新串口下拉列表*/
-/*返回值：无*/
 void MainWindow::searchSerialport()
 {
     QList<QString> temp_list;
@@ -121,10 +111,6 @@ void MainWindow::searchSerialport()
     }
 }
 
-/*函数名：openSerialport*/
-/*参数：无*/
-/*功能：打开串口*/
-/*返回值：true：打开串口成功  false：打开串口失败*/
 bool MainWindow::openSerialport()
 {
     serialport->setPortName(ui->serialportBox->currentText());
@@ -153,66 +139,29 @@ bool MainWindow::openSerialport()
     return true;
 }
 
-/*函数名：closeSerialport*/
-/*参数：无*/
-/*功能：关闭串口*/
-/*返回值：无*/
 void MainWindow::closeSerialport()
 {
     serialport->close();
 }
 
-/*函数名：writeSerialport*/
-/*参数：*data：传输数据流首地址的指针  count：传输数据长度*/
-/*功能：串口传输数据*/
-/*返回值：无*/
-void MainWindow::writeSerialport(quint8 *data,int count)
+void MainWindow::writeSerialport()
 {
     QByteArray buffer;
-    buffer.resize(count);
-    memcpy(buffer.data(),data,count);
+    buffer.resize(PACKET_LENGTH);
+    memcpy(buffer.data(),send_buffer,PACKET_LENGTH*sizeof(quint8));
     serialport->write(buffer);
 }
 
-/*函数名：readSerialport*/
-/*参数：无*/
-/*功能：读取并处理串口数据*/
-/*返回值：无*/
-/*数据格式：id x坐标符号位 x坐标高8位 x坐标低8位 y坐标符号位 y坐标高8位 y坐标低8位 校验和高8位 校验和低8位*/
-/*         0      1         2         3         4          5         6         7         8    */
-/*符号位：0为正数，1为负数*/
 void MainWindow::readSerialport()
 {
-    quint8 *rec_buffer=(quint8*)serialport->readAll().data();
-    int sum=0;
-    for(int i=0;i<=6;i++)
+    QByteArray src_data=serialport->readAll();
+    processor->setCacheData(src_data);
+    if(!processor->isbusy)
     {
-        sum+=rec_buffer[i];
-    }
-    if(sum!=(rec_buffer[7]<<8|rec_buffer[8]))
-    {
-        return;
-    }
-    int x=(rec_buffer[1]==0x00?rec_buffer[2]<<8|rec_buffer[3]:-(rec_buffer[2]<<8|rec_buffer[3]));
-    int y=(rec_buffer[4]==0x00?rec_buffer[5]<<8|rec_buffer[6]:-(rec_buffer[5]<<8|rec_buffer[6]));
-    if(rec_buffer[0]==0x00)
-    {
-        real_length=x;
-        real_width=y;
-        ui->xlabel->setText(QString::number(x));
-        ui->ylabel->setText(QString::number(y));
-    }
-    else
-    {
-        real_line.append(changeToPainterPoint(QPoint(x,y)));
-        update();
+        processor->start();
     }
 }
 
-/*函数名：mousePressEvent*/
-/*参数：鼠标事件*/
-/*功能：鼠标左键按下时开始画图，右键清除画图轨迹*/
-/*返回值：无*/
 void MainWindow::mousePressEvent(QMouseEvent *event)
 {
     if(event->button()==Qt::LeftButton && isInROI(event->pos()))
@@ -233,10 +182,6 @@ void MainWindow::mousePressEvent(QMouseEvent *event)
     }
 }
 
-/*函数名：mouseMoveEvent*/
-/*参数：鼠标事件*/
-/*功能：按下鼠标左键并移动鼠标时画出轨迹*/
-/*返回值：无*/
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
     if(isInROI(event->pos()))
@@ -246,10 +191,6 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event)
     }
 }
 
-/*函数名：mouseReleaseEvent*/
-/*参数：鼠标事件*/
-/*功能：松开鼠标结束画图并显示组成轨迹的点的数量*/
-/*返回值：无*/
 void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 {
     if(clear_flag==false && isInROI(event->pos()))
@@ -260,10 +201,6 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *event)
     ui->showLabel->setText(QString::number(line.size()));//显示轨迹点的数量
 }
 
-/*函数名：paintEvent*/
-/*参数：画图事件*/
-/*功能：画出鼠标轨迹和返回坐标组成的轨迹*/
-/*返回值：无*/
 void MainWindow::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
@@ -292,20 +229,12 @@ void MainWindow::paintEvent(QPaintEvent *event)
     }
 }
 
-/*函数名：isInROI*/
-/*参数：QPoint类型的点*/
-/*功能：检测传入的点的坐标是否在画板内*/
-/*返回值：true：在画板内  false：在画板外*/
 bool MainWindow::isInROI(QPoint pos)
 {
     return (pos.x()>gap && pos.x()<(gap+canvas_length) &&
             pos.y()>gap && pos.y()<(gap+canvas_width));
 }
 
-/*函数名：startSample*/
-/*参数：无*/
-/*功能：对鼠标轨迹进行采样*/
-/*返回值：无*/
 void MainWindow::startSample()
 {
     if(ui->editFrequency->text().isEmpty())
@@ -329,26 +258,9 @@ void MainWindow::startSample()
     update();
 }
 
-/*函数名：syncCoordinateAxis*/
-/*参数：无*/
-/*功能：请求同步实际坐标数据*/
-/*返回值：无*/
-void MainWindow::syncCoordinateAxis()
-{
-    quint8 buffer[9]={0x00,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x05,0xFA};
-    writeSerialport(buffer,sizeof(buffer)/sizeof(quint8));
-}
-
-/*函数名：sendData*/
-/*参数：无*/
-/*功能：发送采样完成的点的坐标数据*/
-/*返回值：无*/
-/*数据格式：命令 x坐标符号位 x坐标高8位 x坐标低8位 y坐标符号位 y坐标高8位 y坐标低8位 校验和高8位 校验和低8位*/
-/*         0      1         2         3         4          5         6         7         8    */
-/*符号位：0为正数，1为负数*/
 void MainWindow::sendData()
 {
-    quint8 buffer[9];
+    quint8 buffer[PACKET_LENGTH];
     int sum=0;
     if(ui->xlabel->text().isEmpty() || ui->ylabel->text().isEmpty())
     {
@@ -357,29 +269,65 @@ void MainWindow::sendData()
         QMessageBox::critical(this,dlgTitle,strInfo);
         return;
     }
-    buffer[0]=0x01;
-    for(int i=0;i<sample_point.size()-1;i++)
+    for(int i=0;i<sample_point.size()-2;i++)
     {
-        buffer[1]=(changeToRealPoint(sample_point.at(i)).x()>=0)?(0x00):(0x01);
-        buffer[2]=changeToRealPoint(sample_point.at(i)).x()/256;
-        buffer[3]=changeToRealPoint(sample_point.at(i)).x()%256;
-        buffer[4]=(changeToRealPoint(sample_point.at(i)).y()>=0)?(0x00):(0x01);
-        buffer[5]=changeToRealPoint(sample_point.at(i)).y()/256;
-        buffer[6]=changeToRealPoint(sample_point.at(i)).y()%256;
-        for(int j=0;j<9;j++)
+        buffer[0]=0x5E;
+        buffer[1]=0x0C;
+        buffer[2]=car_id;
+        buffer[3]=TASK_CMD;
+        buffer[4]=(changeToRealPoint(sample_point.at(i)).x()&0xFF00)>>8;
+        buffer[5]=changeToRealPoint(sample_point.at(i)).x()&0x00FF;
+        buffer[6]=(changeToRealPoint(sample_point.at(i)).y()&0xFF00)>>8;
+        buffer[7]=changeToRealPoint(sample_point.at(i)).y()&0x00FF;
+        sum=0;
+        for(int j=0;j<8;j++)
         {
             sum+=buffer[j];
         }
-        buffer[7]=sum/255;
-        buffer[8]=sum%256;
-        writeSerialport(buffer,sizeof(buffer)/sizeof(quint8));
+        buffer[8]=(sum&0xFF00)>>8;
+        buffer[9]=sum&0x00FF;
+        qDebug()<<"next ";
+        memcpy(send_buffer,buffer,PACKET_LENGTH*sizeof(quint8));
+        writeSerialport();
+        send_timer->start(SENDTIME);
+        autosend_flag=true;
+        while(!reply_flag)
+        {
+            QCoreApplication::processEvents();
+        }
+        send_timer->stop();
+        autosend_flag=false;
+        reply_flag=false;
     }
+    buffer[0]=0x5E;
+    buffer[1]=0x0C;
+    buffer[2]=car_id;
+    buffer[3]=FINISH_CMD;
+    buffer[4]=(changeToRealPoint(sample_point.at(sample_point.size()-1)).x()&0xFF00)>>8;
+    buffer[5]=changeToRealPoint(sample_point.at(sample_point.size()-1)).x()&0x00FF;
+    buffer[6]=(changeToRealPoint(sample_point.at(sample_point.size()-1)).y()&0xFF00)>>8;
+    buffer[7]=changeToRealPoint(sample_point.at(sample_point.size()-1)).y()&0x00FF;
+    sum=0;
+    for(int j=0;j<8;j++)
+    {
+        sum+=buffer[j];
+    }
+    buffer[8]=(sum&0xFF00)>>8;
+    buffer[9]=sum&0x00FF;
+    memcpy(send_buffer,buffer,PACKET_LENGTH*sizeof(quint8));
+    writeSerialport();
+    send_timer->start(SENDTIME);
+    autosend_flag=true;
+    while(!reply_flag)
+    {
+        QCoreApplication::processEvents();
+    }
+    send_timer->stop();
+    autosend_flag=false;
+    reply_flag=false;
+    qDebug()<<"finish";
 }
 
-/*函数名：changeToRealPoint*/
-/*参数：QPoint类型的画板中的点*/
-/*功能：将画板中的点的坐标转化为实际点的坐标*/
-/*返回值：QPoint类型的实际的点*/
 QPoint MainWindow::changeToRealPoint(QPoint p)
 {
     int x,y;
@@ -388,14 +336,26 @@ QPoint MainWindow::changeToRealPoint(QPoint p)
     return QPoint(x,y);
 }
 
-/*函数名：changeToPainterPoint*/
-/*参数：QPoint类型的实际的点*/
-/*功能：将实际点的坐标转化为画板中的点的坐标*/
-/*返回值：QPoint类型的画板中的点*/
-QPoint MainWindow::changeToPainterPoint(QPoint p)
+void MainWindow::updateMapSize()
 {
-    int x,y;
-    x=p.x()*canvas_length/real_length+gap;
-    y=canvas_width-p.y()*canvas_width/real_width+gap;
-    return QPoint(x,y);
+    if(ui->editMapX->text().isEmpty() || ui->editMapY->text().isEmpty())
+    {
+        QString dlgTitle="错误";
+        QString strInfo="请先填写地图信息!";
+        QMessageBox::critical(this,dlgTitle,strInfo);
+        return;
+    }
+    int x=ui->editMapX->text().toInt();
+    int y=ui->editMapY->text().toInt();
+    real_length=x;
+    real_width=y;
+    ui->xlabel->setText(QString::number(x));
+    ui->ylabel->setText(QString::number(y));
+    processor->setMapSize(real_length,real_width);
+}
+
+void MainWindow::updateGraph()
+{
+    real_line.append(processor->line_data);
+    update();
 }

@@ -8,16 +8,9 @@
 #include <QSerialPortInfo>
 #include <QTimer>
 #include <QMessageBox>
+#include "process.h"
+#include "public.h"
 #include <QDebug>
-
-#define canvas_length 500       //画板长
-#define canvas_width  500       //画板宽
-#define gap           50        //距离窗口边框的距离
-
-#define OPENSTATE   0
-#define CLOSESTATE  1
-
-#define BASETIME    500         //自动搜索串口的时间间隔
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -37,23 +30,25 @@ public:
 
 private:
     Ui::MainWindow *ui;
-    QVector<QPoint> line,sample_point,real_line;//鼠标轨迹，采样点，实际轨迹
+    process *processor;
+    QVector<QPoint> line,sample_point,real_line;
     QTimer *timer=new QTimer(this);
-    QList<QString> serialport_list;             //可用串口列表
-    bool serial_state;                          //串口状态
-    QString  serial_choice;                     //从串口下拉列表中选择的串口名
+    QTimer *send_timer = new QTimer(this);
+    QList<QString> serialport_list;
+    bool serial_state;
+    QString  serial_choice;
     QSerialPort *serialport=new QSerialPort();
     QImage image;
-    bool clear_flag=false;                      //清除画板的标志位，true清除
-    bool sample_flag=false;                     //画采样点的标志位，true画采样点
-    int real_length,real_width;                 //画采样点的标志位，true画采样点
+    bool clear_flag=false;
+    bool sample_flag=false;
+    int real_length,real_width;
+    bool reply_flag,autosend_flag;
+    quint8 send_buffer[PACKET_LENGTH];
     void widgetInit();
     bool openSerialport();
     void closeSerialport();
-    void writeSerialport(quint8 *data,int count);
     bool isInROI(QPoint pos);
     QPoint changeToRealPoint(QPoint p);
-    QPoint changeToPainterPoint(QPoint p);
 
 private slots:
     void changeSerialState();
@@ -61,7 +56,9 @@ private slots:
     void recordSerialChoice(int choice);
     void readSerialport();
     void startSample();
-    void syncCoordinateAxis();
     void sendData();
+    void updateMapSize();
+    void updateGraph();
+    void writeSerialport();
 };
 #endif // MAINWINDOW_H
