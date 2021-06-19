@@ -4,7 +4,7 @@ u8 USART3_RX_BUF[USART3_REC_LEN];
 u8 USART3_byteNum;
 u8 u3rx_flag=0;
 
-void Gyro_USART3_Init(u32 bound)
+void Gyro_USART3_Init(u32 bound)//初始化陀螺仪
 {
     float temp;
     temp = 36000000 / bound;
@@ -26,7 +26,7 @@ void Gyro_USART3_Init(u32 bound)
 }
 
 
-void USART3_IRQHandler(void)
+void USART3_IRQHandler(void)//中断存取数据，并解析出角度
 {
     if(USART3->SR & (1 << 3))
     {

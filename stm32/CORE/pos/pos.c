@@ -2,7 +2,7 @@
 
 Posinfo current_pos;
 
-void UpdatePosinfo()
+void UpdatePosinfo()//更新自身坐标信息：读取数组并进行数据解析，更新坐标
 {
 	int xresult=0,yresult=0;
 	int pos,flag=1;

@@ -489,19 +489,9 @@
           <GroupName>CORE</GroupName>
           <Files>
             <File>
-              <FileName>attitude.c</FileName>
+              <FileName>pos.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\CORE\attitude\attitude.c</FilePath>
-            </File>
-            <File>
-              <FileName>pid.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\CORE\pid\pid.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\CORE\motor\motor.c</FilePath>
+              <FilePath>..\CORE\pos\pos.c</FilePath>
             </File>
             <File>
               <FileName>gyro.c</FileName>
@@ -509,9 +499,19 @@
               <FilePath>..\CORE\gyro\gyro.c</FilePath>
             </File>
             <File>
-              <FileName>pos.c</FileName>
+              <FileName>pid.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\CORE\pos\pos.c</FilePath>
+              <FilePath>..\CORE\pid\pid.c</FilePath>
+            </File>
+            <File>
+              <FileName>attitude.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\CORE\attitude\attitude.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\CORE\motor\motor.c</FilePath>
             </File>
             <File>
               <FileName>event.c</FileName>

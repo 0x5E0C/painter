@@ -1,6 +1,6 @@
 #include "gpio.h"
 
-void GPIO_Init()
+void GPIO_Init()//初始化GPIO口（PBout）
 {
 	RCC->APB2ENR|=1<<3;
 	

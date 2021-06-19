@@ -5,13 +5,13 @@ u8 USART2_byteNum;
 
 u8 u2rx_flag=0;
 
-void USART2_Send(u8 data)
+void USART2_Send(u8 data)//通过串口发送单个字符（主要用于启动UWB定位）
 {
 	while((USART2->SR & 0X40) == 0);
     USART2->DR = data;
 }
 
-void UWB_USART2_Init(u32 bound)
+void UWB_USART2_Init(u32 bound)//初始化UWB
 {
     float temp;
     temp = 36000000 / bound;
@@ -32,7 +32,7 @@ void UWB_USART2_Init(u32 bound)
     USART2->CR1 = 0x201C;
 }
 
-void USART2_IRQHandler(void)
+void USART2_IRQHandler(void)//中断并存取位置数据——pos解析
 {
     if(USART2->SR & (1 << 3))
     {

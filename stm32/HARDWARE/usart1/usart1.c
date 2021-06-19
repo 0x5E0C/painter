@@ -1,4 +1,4 @@
-#include "usart1.h"
+#include "usart1.h"	
 
 u8 USART1_RX_BUF[USART1_REC_LEN];
 u8 USART1_byteNum;
@@ -6,13 +6,13 @@ u8 u1rx_flag=0;
 u8 last_byteNum=0;
 u8 RX_CACHE[USART1_REC_LEN];
 
-void USART1_Send(u8 data)
+void USART1_Send(u8 data)//通过串口发送单个字符（用于逐个发送数组内容）
 {
 	while((USART1->SR & 0X40) == 0);
     USART1->DR = data;
 }
 
-void Wireless_USART1_Init(u32 bound)
+void Wireless_USART1_Init(u32 bound)//初始化无线模块
 {	
 	float temp;
     temp = 72000000 / bound;
@@ -34,7 +34,7 @@ void Wireless_USART1_Init(u32 bound)
 }
 
 
-void USART1_IRQHandler(void)
+void USART1_IRQHandler(void)//中断并存取数据，event解析
 {
 	u8 i;
     if(USART1->SR & (1 << 3))
@@ -44,7 +44,7 @@ void USART1_IRQHandler(void)
     }
     if(USART1->SR & (1 << 4))
     {
-		USART1->CR1 &= ~(1 << 5);
+		    USART1->CR1 &= ~(1 << 5);
         USART1_byteNum = USART1->SR;
         USART1_byteNum = USART1->DR;
         USART1_byteNum = USART1_REC_LEN - DMA1_Channel5->CNDTR;

@@ -1,6 +1,6 @@
 #include "timer2.h"
 
-void Motor_TIM2_Init(u16 arr, u16 psc)
+void Motor_TIM2_Init(u16 arr, u16 psc)//初始化定时器2：输出PWM给电机
 {
     RCC->APB1ENR|=1<<0; 
 	RCC->APB2ENR|=1<<3;	
